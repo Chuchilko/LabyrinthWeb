@@ -2,9 +2,9 @@ import * as THREE from 'three';
 
 /* НАСТРОЙКИ (живые, меняются ползунками) */
 const settings = {
-  speed: 1.0,
-  friction: 0.4,
-  tiltSpeed: 2.5,
+  speed: 3.0,
+  friction: 0.15,
+  tiltSpeed: 6.0,
   maxTilt: 14,
   ballRadius: 0.22,
 };
@@ -13,7 +13,8 @@ const settings = {
 const GRID = 15;
 const CELL = 1.0;
 const HALF = (GRID * CELL) / 2;
-const WALL_H = 0.55;
+const WALL_H = 1.1;       // высота стен (удвоена)
+const BORDER_W = 4.0;     // толщина внешнего обода, уходящего за экран
 
 let maze = [];
 
@@ -42,9 +43,9 @@ function makeCamera() {
 }
 let camera = makeCamera();
 
-const ambient = new THREE.AmbientLight(0xffffff, 0.75);
+const ambient = new THREE.AmbientLight(0xffffff, 1.15);
 scene.add(ambient);
-const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
+const dirLight = new THREE.DirectionalLight(0xffffff, 1.6);
 dirLight.position.set(4, 10, 6);
 scene.add(dirLight);
 
@@ -119,6 +120,25 @@ function buildLevel() {
     }
   }
   world.add(wallGroup);
+
+  // Внешний обод-рамка (высокая, уходит далеко за экран),
+  // чтобы по краям не было видно тонких стенок при наклоне.
+  const borderGroup = new THREE.Group();
+  const borderMat = new THREE.MeshStandardMaterial({ color: 0x2b3850, roughness: 0.85 });
+  const span = GRID * CELL + BORDER_W * 2; // общая длина стороны
+  // верх/низ (вдоль X)
+  for (const zSign of [-1, 1]) {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(span, WALL_H * 2.2, BORDER_W), borderMat);
+    b.position.set(0, (WALL_H * 2.2) / 2, zSign * (HALF + BORDER_W / 2));
+    borderGroup.add(b);
+  }
+  // лево/право (вдоль Z)
+  for (const xSign of [-1, 1]) {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(BORDER_W, WALL_H * 2.2, span), borderMat);
+    b.position.set(xSign * (HALF + BORDER_W / 2), (WALL_H * 2.2) / 2, 0);
+    borderGroup.add(b);
+  }
+  world.add(borderGroup);
 
   // старт и финиш (центр клеток)
   startPos.set(1 * CELL - HALF + CELL / 2, settings.ballRadius, 1 * CELL - HALF + CELL / 2);
@@ -353,10 +373,11 @@ function onOrientation(e) {
   // beta = наклон вперёд/назад (вокруг X), gamma = влево/вправо (вокруг Y)
   const beta = (e.beta ?? 0) * Math.PI / 180;
   const gamma = (e.gamma ?? 0) * Math.PI / 180;
-  if (gyroBase === null) gyroBase = { beta, gamma };
-  // отклонение от нуля (калибровка)
-  gyroTilt.x = -(beta - gyroBase.beta);
-  gyroTilt.z = (gamma - gyroBase.gamma);
+    if (gyroBase === null) gyroBase = { beta, gamma };
+  // отклонение от нуля (калибровка). Знаки инвертированы,
+  // чтобы соответствовать управлению джойстиком.
+  gyroTilt.x = (beta - gyroBase.beta);
+  gyroTilt.z = -(gamma - gyroBase.gamma);
 }
 
 async function enableGyro() {
