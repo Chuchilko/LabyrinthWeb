@@ -14,7 +14,7 @@ const GRID = 15;
 const CELL = 1.0;
 const HALF = (GRID * CELL) / 2;
 const WALL_H = 1.1;       // высота стен (удвоена)
-const BORDER_W = 4.0;     // толщина внешнего обода, уходящего за экран
+const BORDER_W = 14.0;    // толщина внешних плит: уходят далеко за экран
 
 let maze = [];
 
@@ -96,17 +96,23 @@ function buildLevel() {
   // очистка предыдущего
   while (world.children.length) world.remove(world.children[0]);
 
-  // пол
-  const floorGeo = new THREE.BoxGeometry(GRID * CELL, 0.2, GRID * CELL);
-  const floorMat = new THREE.MeshStandardMaterial({ color: 0x1d2735, roughness: 0.9, metalness: 0.0 });
+      // ---- МОНОЛИТНАЯ МОДЕЛЬ ----
+  // Всё (дно + стены поля + масса вокруг) — одна высота WALL_H.
+  // Дно канавок (пол) — верх на y=0, тонкое, уходит подо всё.
+  // Стены и внешняя масса — столбы высотой WALL_H, верх на y=WALL_H.
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0x3a4a63, roughness: 0.72 });
+
+  // 1) Дно канавок — большая тонкая плита, верх на y=0
+  const floorSize = GRID * CELL + BORDER_W * 2;
+  const floorGeo = new THREE.BoxGeometry(floorSize, 0.2, floorSize);
+  const floorMat = new THREE.MeshStandardMaterial({ color: 0x1d2735, roughness: 0.95 });
   floorMesh = new THREE.Mesh(floorGeo, floorMat);
-  floorMesh.position.y = -0.1;
+  floorMesh.position.y = -0.1;          // верх ровно на 0
   world.add(floorMesh);
 
-  // стены — один общий материал/геометрия
+  // 2) Стены поля — столбы высотой WALL_H (упираются сверху в общий уровень)
   wallGroup = new THREE.Group();
   const wallGeo = new THREE.BoxGeometry(CELL, WALL_H, CELL);
-  const wallMat = new THREE.MeshStandardMaterial({ color: 0x3a4a63, roughness: 0.7 });
   for (let y = 0; y < GRID; y++) {
     for (let x = 0; x < GRID; x++) {
       if (!maze[y][x]) continue;
@@ -121,21 +127,22 @@ function buildLevel() {
   }
   world.add(wallGroup);
 
-  // Внешний обод-рамка (высокая, уходит далеко за экран),
-  // чтобы по краям не было видно тонких стенок при наклоне.
+  // 3) Внешняя масса — та же высота WALL_H, тянется от края поля
+  //    далеко за экран во все стороны (включая зону под джойстиком снизу).
+  //    Входит в world => наклоняется вместе с лабиринтом.
   const borderGroup = new THREE.Group();
-  const borderMat = new THREE.MeshStandardMaterial({ color: 0x2b3850, roughness: 0.85 });
-  const span = GRID * CELL + BORDER_W * 2; // общая длина стороны
-  // верх/низ (вдоль X)
+  const span = GRID * CELL + BORDER_W * 2;   // общий габарит по стороне
+  const outMid = HALF + BORDER_W / 2;         // центр внешней полосы
+  // верх/низ (вдоль X) — примыкают к краю поля, тянутся наружу
   for (const zSign of [-1, 1]) {
-    const b = new THREE.Mesh(new THREE.BoxGeometry(span, WALL_H * 2.2, BORDER_W), borderMat);
-    b.position.set(0, (WALL_H * 2.2) / 2, zSign * (HALF + BORDER_W / 2));
+    const b = new THREE.Mesh(new THREE.BoxGeometry(span, WALL_H, BORDER_W), wallMat);
+    b.position.set(0, WALL_H / 2, zSign * outMid);
     borderGroup.add(b);
   }
   // лево/право (вдоль Z)
   for (const xSign of [-1, 1]) {
-    const b = new THREE.Mesh(new THREE.BoxGeometry(BORDER_W, WALL_H * 2.2, span), borderMat);
-    b.position.set(xSign * (HALF + BORDER_W / 2), (WALL_H * 2.2) / 2, 0);
+    const b = new THREE.Mesh(new THREE.BoxGeometry(BORDER_W, WALL_H, span), wallMat);
+    b.position.set(xSign * outMid, WALL_H / 2, 0);
     borderGroup.add(b);
   }
   world.add(borderGroup);

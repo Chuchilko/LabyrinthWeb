@@ -72,7 +72,7 @@ html, body {
   position: relative;
   width: 140px;
   height: 140px;
-  margin-top: 12px;
+  margin: auto 0;        /* центрируется в свободном месте под сценой */
   border-radius: 50%;
   background: radial-gradient(circle, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
   border: 2px solid rgba(255,255,255,0.15);
